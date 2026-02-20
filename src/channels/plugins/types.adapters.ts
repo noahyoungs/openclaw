@@ -76,6 +76,8 @@ export type ChannelOutboundContext = {
   to: string;
   text: string;
   mediaUrl?: string;
+  /** Preferred human-readable filename for the attachment (no path separators). */
+  mediaFilename?: string;
   mediaLocalRoots?: readonly string[];
   gifPlayback?: boolean;
   replyToId?: string | null;

@@ -5,7 +5,7 @@ export async function resolveOutboundAttachmentFromUrl(
   mediaUrl: string,
   maxBytes: number,
   options?: { localRoots?: readonly string[] },
-): Promise<{ path: string; contentType?: string }> {
+): Promise<{ path: string; contentType?: string; fileName?: string }> {
   const media = await loadWebMedia(mediaUrl, {
     maxBytes,
     localRoots: options?.localRoots,
@@ -15,6 +15,7 @@ export async function resolveOutboundAttachmentFromUrl(
     media.contentType ?? undefined,
     "outbound",
     maxBytes,
+    media.fileName,
   );
-  return { path: saved.path, contentType: saved.contentType };
+  return { path: saved.path, contentType: saved.contentType, fileName: media.fileName };
 }

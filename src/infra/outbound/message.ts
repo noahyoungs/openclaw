@@ -54,6 +54,8 @@ type MessageSendParams = {
   };
   abortSignal?: AbortSignal;
   silent?: boolean;
+  /** Preferred human-readable filename for the attachment. */
+  mediaFilename?: string;
 };
 
 export type MessageSendResult = {
@@ -209,6 +211,7 @@ export async function sendMessage(params: MessageSendParams): Promise<MessageSen
       bestEffort: params.bestEffort,
       abortSignal: params.abortSignal,
       silent: params.silent,
+      mediaFilename: params.mediaFilename,
       mirror: params.mirror
         ? {
             ...params.mirror,

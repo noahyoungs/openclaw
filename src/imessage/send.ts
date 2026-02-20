@@ -1,8 +1,11 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import { loadConfig } from "../config/config.js";
 import { resolveMarkdownTableMode } from "../config/markdown-tables.js";
 import { convertMarkdownTables } from "../markdown/tables.js";
 import { mediaKindFromMime } from "../media/constants.js";
 import { resolveOutboundAttachmentFromUrl } from "../media/outbound-attachment.js";
+import { extractOriginalFilename } from "../media/store.js";
 import { resolveIMessageAccount, type ResolvedIMessageAccount } from "./accounts.js";
 import { createIMessageRpcClient, type IMessageRpcClient } from "./client.js";
 import { formatIMessageChatTarget, type IMessageService, parseIMessageTarget } from "./targets.js";
@@ -22,11 +25,13 @@ export type IMessageSendOpts = {
   client?: IMessageRpcClient;
   config?: ReturnType<typeof loadConfig>;
   account?: ResolvedIMessageAccount;
+  /** Preferred human-readable filename for the attachment. */
+  filename?: string;
   resolveAttachmentImpl?: (
     mediaUrl: string,
     maxBytes: number,
     options?: { localRoots?: readonly string[] },
-  ) => Promise<{ path: string; contentType?: string }>;
+  ) => Promise<{ path: string; contentType?: string; fileName?: string }>;
   createClient?: (params: { cliPath: string; dbPath?: string }) => Promise<IMessageRpcClient>;
 };
 
@@ -121,6 +126,7 @@ export async function sendMessageIMessage(
         : 16 * 1024 * 1024;
   let message = text ?? "";
   let filePath: string | undefined;
+  let cleanupPath: string | undefined;
 
   if (opts.mediaUrl?.trim()) {
     const resolveAttachmentFn = opts.resolveAttachmentImpl ?? resolveOutboundAttachmentFromUrl;
@@ -128,6 +134,30 @@ export async function sendMessageIMessage(
       localRoots: opts.mediaLocalRoots,
     });
     filePath = resolved.path;
+
+    // Create a hard link (or copy) with the clean original filename so iMessage
+    // shows a human-readable name instead of UUID gibberish to the recipient.
+    // Hard links are preferred because macOS/imsg cannot "resolve through" them
+    // the way it can with symlinks.
+    // Priority: explicit filename from agent > fileName from media source > embedded original name.
+    const cleanName = opts.filename ?? resolved.fileName ?? extractOriginalFilename(resolved.path);
+    if (cleanName && cleanName !== path.basename(resolved.path)) {
+      const linkPath = path.join(path.dirname(resolved.path), cleanName);
+      try {
+        await fs.link(resolved.path, linkPath);
+        cleanupPath = linkPath;
+        filePath = linkPath;
+      } catch {
+        try {
+          await fs.copyFile(resolved.path, linkPath);
+          cleanupPath = linkPath;
+          filePath = linkPath;
+        } catch {
+          // Fall back to the original UUID-named path.
+        }
+      }
+    }
+
     if (!message.trim()) {
       const kind = mediaKindFromMime(resolved.contentType ?? undefined);
       if (kind) {
@@ -183,6 +213,9 @@ export async function sendMessageIMessage(
       messageId: resolvedId ?? (result?.ok ? "ok" : "unknown"),
     };
   } finally {
+    if (cleanupPath) {
+      await fs.unlink(cleanupPath).catch(() => {});
+    }
     if (shouldClose) {
       await client.stop();
     }

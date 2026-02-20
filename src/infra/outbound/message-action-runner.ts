@@ -395,6 +395,7 @@ async function handleSendAction(ctx: ResolvedActionContext): Promise<MessageActi
     readStringParam(params, "media", { trim: false }) ??
     readStringParam(params, "path", { trim: false }) ??
     readStringParam(params, "filePath", { trim: false });
+  const mediaFilename = readStringParam(params, "filename") ?? undefined;
   const hasCard = params.card != null && typeof params.card === "object";
   const hasComponents = params.components != null && typeof params.components === "object";
   const caption = readStringParam(params, "caption", { allowEmpty: true }) ?? "";
@@ -543,6 +544,7 @@ async function handleSendAction(ctx: ResolvedActionContext): Promise<MessageActi
     bestEffort: bestEffort ?? undefined,
     replyToId: replyToId ?? undefined,
     threadId: resolvedThreadId ?? undefined,
+    mediaFilename,
   });
 
   return {

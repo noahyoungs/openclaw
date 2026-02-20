@@ -199,7 +199,7 @@ export const imessagePlugin: ChannelPlugin<ResolvedIMessageAccount> = {
       });
       return { channel: "imessage", ...result };
     },
-    sendMedia: async ({ cfg, to, text, mediaUrl, accountId, deps, replyToId }) => {
+    sendMedia: async ({ cfg, to, text, mediaUrl, mediaFilename, accountId, deps, replyToId }) => {
       const send = deps?.sendIMessage ?? getIMessageRuntime().channel.imessage.sendMessageIMessage;
       const maxBytes = resolveChannelMediaMaxBytes({
         cfg,
@@ -213,6 +213,7 @@ export const imessagePlugin: ChannelPlugin<ResolvedIMessageAccount> = {
         maxBytes,
         accountId: accountId ?? undefined,
         replyToId: replyToId ?? undefined,
+        filename: mediaFilename ?? undefined,
       });
       return { channel: "imessage", ...result };
     },

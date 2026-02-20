@@ -114,6 +114,7 @@ type ChannelHandlerParams = {
   gifPlayback?: boolean;
   silent?: boolean;
   mediaLocalRoots?: readonly string[];
+  mediaFilename?: string;
 };
 
 // Channel docking: outbound delivery delegates to plugin.outbound adapters.
@@ -187,6 +188,7 @@ function createChannelOutboundContextBase(
     deps: params.deps,
     silent: params.silent,
     mediaLocalRoots: params.mediaLocalRoots,
+    mediaFilename: params.mediaFilename,
   };
 }
 
@@ -216,6 +218,8 @@ type DeliverOutboundPayloadsCoreParams = {
     mediaUrls?: string[];
   };
   silent?: boolean;
+  /** Preferred human-readable filename for the attachment. */
+  mediaFilename?: string;
 };
 
 type DeliverOutboundPayloadsParams = DeliverOutboundPayloadsCoreParams & {
@@ -309,6 +313,7 @@ async function deliverOutboundPayloadsCore(
     gifPlayback: params.gifPlayback,
     silent: params.silent,
     mediaLocalRoots,
+    mediaFilename: params.mediaFilename,
   });
   const textLimit = handler.chunker
     ? resolveTextChunkLimit(cfg, channel, accountId, {
