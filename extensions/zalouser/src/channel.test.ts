@@ -15,7 +15,7 @@ vi.mock("./qr-temp-file.js", () => ({
 }));
 
 vi.mock("./send.js", async () => {
-  const actual = (await vi.importActual("./send.js")) as Record<string, unknown>;
+  const actual = (await vi.importActual("./send.js"));
   return {
     ...actual,
     sendMessageZalouser: vi.fn(async () => ({ ok: true, messageId: "mid-1" })),

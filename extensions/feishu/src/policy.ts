@@ -80,7 +80,7 @@ export function resolveFeishuGroupConfig(params: {
 export function resolveFeishuGroupToolPolicy(
   params: ChannelGroupContext,
 ): GroupToolPolicyConfig | undefined {
-  const cfg = params.cfg.channels?.feishu as FeishuConfig | undefined;
+  const cfg = params.cfg.channels?.feishu;
   if (!cfg) {
     return undefined;
   }
@@ -124,7 +124,7 @@ export function resolveFeishuReplyPolicy(params: {
     return { requireMention: false };
   }
 
-  const feishuCfg = params.cfg.channels?.feishu as FeishuConfig | undefined;
+  const feishuCfg = params.cfg.channels?.feishu;
   const resolvedCfg = resolveMergedAccountConfig<FeishuConfig>({
     channelConfig: feishuCfg,
     accounts: feishuCfg?.accounts as Record<string, Partial<FeishuConfig>> | undefined,

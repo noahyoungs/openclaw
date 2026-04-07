@@ -12,9 +12,9 @@ import {
   type ConfigWriteTargetLike,
 } from "./config-write-policy-shared.js";
 import type { ChannelId } from "./types.js";
-export type ConfigWriteScope = ConfigWriteScopeLike<ChannelId>;
-export type ConfigWriteTarget = ConfigWriteTargetLike<ChannelId>;
-export type ConfigWriteAuthorizationResult = ConfigWriteAuthorizationResultLike<ChannelId>;
+export type ConfigWriteScope = ConfigWriteScopeLike;
+export type ConfigWriteTarget = ConfigWriteTargetLike;
+export type ConfigWriteAuthorizationResult = ConfigWriteAuthorizationResultLike;
 
 export function resolveChannelConfigWrites(params: {
   cfg: OpenClawConfig;

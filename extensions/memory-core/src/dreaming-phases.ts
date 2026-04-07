@@ -1516,10 +1516,7 @@ async function runPhaseIfTriggered(params: {
         timezone?: string;
         storage: { mode: "inline" | "separate" | "both"; separateReports: boolean };
       })
-    | (MemoryRemDreamingConfig & {
-        timezone?: string;
-        storage: { mode: "inline" | "separate" | "both"; separateReports: boolean };
-      });
+     ;
 }): Promise<{ handled: true; reason: string } | undefined> {
   if (params.trigger !== "heartbeat" || params.cleanedBody.trim() !== params.eventText) {
     return undefined;
@@ -1547,10 +1544,7 @@ async function runPhaseIfTriggered(params: {
         await runLightDreaming({
           workspaceDir,
           cfg: params.cfg,
-          config: params.config as MemoryLightDreamingConfig & {
-            timezone?: string;
-            storage: { mode: "inline" | "separate" | "both"; separateReports: boolean };
-          },
+          config: params.config,
           logger: params.logger,
           subagent: params.subagent,
         });
@@ -1558,10 +1552,7 @@ async function runPhaseIfTriggered(params: {
         await runRemDreaming({
           workspaceDir,
           cfg: params.cfg,
-          config: params.config as MemoryRemDreamingConfig & {
-            timezone?: string;
-            storage: { mode: "inline" | "separate" | "both"; separateReports: boolean };
-          },
+          config: params.config,
           logger: params.logger,
           subagent: params.subagent,
         });

@@ -10,7 +10,7 @@ import {
 } from "./accounts.js";
 import type { FeishuConfig } from "./types.js";
 
-const asConfig = (value: Partial<FeishuConfig>) => value as FeishuConfig;
+const asConfig = (value: Partial<FeishuConfig>) => value;
 
 function makeDefaultAndRouterAccounts() {
   return {

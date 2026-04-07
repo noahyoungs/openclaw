@@ -59,6 +59,10 @@ function buildInputOptions(options: InputOptionsArg): InputOptionsReturn {
 
   return {
     ...options,
+    // tsdown 0.21.7 defaults moduleTypes[".node"] to "copy" which rolldown rc.3
+    // does not support. Override to "asset" so the config passes validation.
+    // Native .node binaries (e.g. @lancedb) are already marked neverBundle.
+    moduleTypes: { ...options.moduleTypes, ".node": "asset" },
     onLog(...args: Parameters<OnLogFunction>) {
       const [level, log, defaultHandler] = args;
       if (isSuppressedLog(log)) {

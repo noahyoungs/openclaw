@@ -270,7 +270,7 @@ export function createGeminiWebSearchProvider(): WebSearchProviderPlugin {
           ctx.searchConfig as SearchConfigRecord | undefined,
           "gemini",
           resolveProviderWebSearchPluginConfig(ctx.config, "google"),
-        ) as SearchConfigRecord | undefined,
+        ),
       ),
   };
 }
