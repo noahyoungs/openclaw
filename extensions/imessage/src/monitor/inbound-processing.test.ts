@@ -1,6 +1,7 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
 import { describe, expect, it, vi } from "vitest";
 import { sanitizeTerminalText } from "../../../../src/terminal/safe-text.js";
+import { createSentMessageCache } from "./echo-cache.js";
 import {
   describeIMessageEchoDropLog,
   resolveIMessageInboundDecision,
@@ -277,6 +278,36 @@ describe("resolveIMessageInboundDecision echo detection", () => {
     expect(logVerbose).toHaveBeenCalledWith(
       `imessage: dropping self-chat reflected duplicate: "${sanitizeTerminalText(bodyText)}"`,
     );
+  });
+
+  it("drops is_from_me=false DM reflection via echo cache when created_at is absent", () => {
+    // Scenario: agent replies "Hi there!" to +15555550123 (chatIdentifier).
+    // Deliver scope is "default:imessage:+15555550123".
+    // iMessage then sends an is_from_me=false reflection of the same outbound message
+    // with sender=local-handle (+15551234567) and chatIdentifier=remote-handle (+15555550123).
+    // created_at is absent so selfChatCache cannot catch it.
+    // The echo scope must use chatIdentifier so it matches the deliver scope and the
+    // GUID-backed echo cache entry can drop the reflection.
+    const echoCache = createSentMessageCache();
+    const deliverScope = "default:imessage:+15555550123";
+    echoCache.remember(deliverScope, { text: "Hi there!", messageId: "p:0/GUID-outbound-1" });
+
+    const decision = resolveDecision({
+      message: {
+        id: 9876,
+        guid: "p:0/GUID-outbound-1",
+        sender: "+15551234567", // local (bot) handle — differs from chatIdentifier
+        chat_identifier: "+15555550123", // remote (user) handle = deliver scope
+        text: "Hi there!",
+        is_from_me: false, // reflection — is_from_me=true was already dropped upstream
+        // no created_at → selfChatCache can't help
+      },
+      messageText: "Hi there!",
+      bodyText: "Hi there!",
+      echoCache,
+    });
+
+    expect(decision).toEqual({ kind: "drop", reason: "echo" });
   });
 });
 
