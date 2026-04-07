@@ -6,9 +6,11 @@ import { SessionManager } from "@mariozechner/pi-coding-agent";
 import {
   resolveDefaultSessionStorePath,
   resolveSessionFilePath,
+  resolveSessionFilePathOptions,
 } from "../../config/sessions/paths.js";
 import { loadSessionStore } from "../../config/sessions/store.js";
 import type { SessionEntry } from "../../config/sessions/types.js";
+import { formatErrorMessage } from "../../infra/errors.js";
 import type { ReplyPayload } from "../types.js";
 import { resolveCommandsSystemPromptBundle } from "./commands-system-prompt.js";
 import type { HandleCommandsParams } from "./commands-types.js";
@@ -126,13 +128,14 @@ export async function buildExportSessionReply(params: HandleCommandsParams): Pro
 
   let sessionFile: string;
   try {
-    sessionFile = resolveSessionFilePath(entry.sessionId, entry, {
-      agentId: params.agentId,
-      sessionsDir: path.dirname(storePath),
-    });
+    sessionFile = resolveSessionFilePath(
+      entry.sessionId,
+      entry,
+      resolveSessionFilePathOptions({ agentId: params.agentId, storePath }),
+    );
   } catch (err) {
     return {
-      text: `❌ Failed to resolve session file: ${err instanceof Error ? err.message : String(err)}`,
+      text: `❌ Failed to resolve session file: ${formatErrorMessage(err)}`,
     };
   }
 
