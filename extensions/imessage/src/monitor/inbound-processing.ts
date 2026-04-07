@@ -220,43 +220,15 @@ export function resolveIMessageInboundDecision(params: {
   const hasInboundGuid = Boolean(normalizeReplyField(params.message.guid));
 
   if (params.message.is_from_me) {
-    // Always cache in selfChatCache so the upcoming is_from_me=false reflection
-    // (which arrives 2-3s later) is correctly identified and dropped.
+    // Always cache in selfChatCache so any is_from_me=false reflection that
+    // arrives 2-3s later is correctly identified and dropped by the selfChatCache
+    // check below.
     params.selfChatCache?.remember(selfChatLookup);
-
-    if (isSelfChat) {
-      // In self-chat, is_from_me=true could be a real user message OR an agent
-      // reply echo. Use the echo cache with skipIdShortCircuit=true to check
-      // whether this text matches a recently-sent agent reply.
-      const echoScope = buildIMessageEchoScope({
-        accountId: params.accountId,
-        isGroup,
-        chatId,
-        sender,
-      });
-      if (
-        params.echoCache &&
-        (bodyText || inboundMessageId) &&
-        hasIMessageEchoMatch({
-          echoCache: params.echoCache,
-          scope: echoScope,
-          text: bodyText || undefined,
-          messageIds: inboundMessageIds,
-          skipIdShortCircuit: !hasInboundGuid,
-        })
-      ) {
-        return { kind: "drop", reason: "agent echo in self-chat" };
-      }
-      // Echo cache missed → this is a real user message in self-chat. Process it.
-      // Skip the selfChatCache.has() check below — we just remember()d ourselves
-      // and would immediately match our own entry.
-      skipSelfChatHasCheck = true;
-      // Fall through to rest of decision logic (access control, etc.)
-    } else {
-      // Normal DM or group: is_from_me=true means this is an outbound message
-      // notification that we sent. Drop it.
-      return { kind: "drop", reason: "from me" };
-    }
+    // Drop unconditionally — both normal DMs and self-chat. The echo-cache
+    // path for self-chat was unreliable when the cache missed (e.g. empty text
+    // on media-only sends, control-char prefixed reflections), causing agent
+    // reply loops. See: https://github.com/openclaw/openclaw/issues/59363
+    return { kind: "drop", reason: isSelfChat ? "from me self-chat" : "from me" };
   }
   if (isGroup && !chatId) {
     return { kind: "drop", reason: "group without chat_id" };
