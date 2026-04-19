@@ -120,6 +120,9 @@ describe("resolveIMessageInboundDecision echo detection", () => {
       resolveDecision({
         message: {
           id: 9641,
+          sender: "+15555550123",
+          chat_identifier: "+15555550123",
+          destination_caller_id: "+15555550123",
           text: "Do you want to report this issue?",
           created_at: createdAt,
           is_from_me: true,
@@ -128,12 +131,14 @@ describe("resolveIMessageInboundDecision echo detection", () => {
         bodyText: "Do you want to report this issue?",
         selfChatCache,
       }),
-    ).toEqual({ kind: "drop", reason: "from me" });
+    ).toEqual({ kind: "drop", reason: "from me self-chat" });
 
     expect(
       resolveDecision({
         message: {
           id: 9642,
+          sender: "+15555550123",
+          chat_identifier: "+15555550123",
           text: "Do you want to report this issue?",
           created_at: createdAt,
         },
@@ -253,6 +258,9 @@ describe("resolveIMessageInboundDecision echo detection", () => {
     resolveDecision({
       message: {
         id: 9801,
+        sender: "+15555550123",
+        chat_identifier: "+15555550123",
+        destination_caller_id: "+15555550123",
         text: bodyText,
         created_at: createdAt,
         is_from_me: true,
@@ -266,6 +274,8 @@ describe("resolveIMessageInboundDecision echo detection", () => {
     resolveDecision({
       message: {
         id: 9802,
+        sender: "+15555550123",
+        chat_identifier: "+15555550123",
         text: bodyText,
         created_at: createdAt,
       },

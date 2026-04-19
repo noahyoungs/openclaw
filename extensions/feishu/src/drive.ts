@@ -2,6 +2,7 @@ import type * as Lark from "@larksuiteoapi/node-sdk";
 import { formatErrorMessage } from "openclaw/plugin-sdk/error-runtime";
 import type { OpenClawPluginApi } from "../runtime-api.js";
 import { listEnabledFeishuAccounts } from "./accounts.js";
+import { cleanupAmbientCommentTypingReaction } from "./comment-reaction.js";
 import { encodeQuery, extractReplyText, isRecord, readString } from "./comment-shared.js";
 import { parseFeishuCommentTarget, type CommentFileType } from "./comment-target.js";
 import { FeishuDriveSchema, type FeishuDriveParams } from "./drive-schema.js";
@@ -104,6 +105,7 @@ type FeishuDriveToolContext = {
   deliveryContext?: {
     channel?: string;
     to?: string;
+    threadId?: string | number;
   };
 };
 
@@ -329,7 +331,7 @@ async function getRootFolderToken(client: Lark.Client): Promise<string> {
   const domain = internalClient.domain ?? "https://open.feishu.cn";
   const res = (await internalClient.httpInstance.get(
     `${domain}/open-apis/drive/explorer/v2/root_folder/meta`,
-  ));
+  )) as FeishuExplorerRootFolderMetaResponse;
   if (res.code !== 0) {
     throw new Error(res.msg ?? "Failed to get root folder");
   }
@@ -808,14 +810,28 @@ export function registerFeishuDriveTools(api: OpenClawPluginApi) {
               }
               case "add_comment": {
                 const resolved = applyAddCommentDefaults(applyAddCommentAmbientDefaults(p, ctx));
-                return jsonToolResult(await addComment(client, resolved));
+                try {
+                  return jsonToolResult(await addComment(client, resolved));
+                } finally {
+                  void cleanupAmbientCommentTypingReaction({
+                    client: getDriveInternalClient(client),
+                    deliveryContext: ctx.deliveryContext,
+                  });
+                }
               }
               case "reply_comment": {
                 const resolved = applyCommentFileTypeDefault(
                   applyAmbientCommentDefaults(p, ctx),
                   "reply_comment",
                 );
-                return jsonToolResult(await deliverCommentThreadText(client, resolved));
+                try {
+                  return jsonToolResult(await deliverCommentThreadText(client, resolved));
+                } finally {
+                  void cleanupAmbientCommentTypingReaction({
+                    client: getDriveInternalClient(client),
+                    deliveryContext: ctx.deliveryContext,
+                  });
+                }
               }
               default:
                 return unknownToolActionResult((p as { action?: unknown }).action);
@@ -829,5 +845,5 @@ export function registerFeishuDriveTools(api: OpenClawPluginApi) {
     { name: "feishu_drive" },
   );
 
-  api.logger.info?.(`feishu_drive: Registered feishu_drive tool`);
+  api.logger.debug?.(`feishu_drive: Registered feishu_drive tool`);
 }

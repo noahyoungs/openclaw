@@ -93,6 +93,15 @@ async function resolveSlackHandleAction() {
   );
 }
 
+function shouldTreatSlackDeliveredTextAsVisible(params: {
+  kind: "tool" | "block" | "final";
+  text?: string;
+}): boolean {
+  return (
+    params.kind === "block" && typeof params.text === "string" && params.text.trim().length > 0
+  );
+}
+
 // Select the appropriate Slack token for read/write operations.
 function getTokenForOperation(
   account: ResolvedSlackAccount,
@@ -271,7 +280,7 @@ const resolveSlackAllowlistGroupOverrides = createFlatAllowlistOverrideResolver(
 const resolveSlackAllowlistNames = createAccountScopedAllowlistNameResolver({
   resolveAccount: resolveSlackAccount,
   resolveToken: (account: ResolvedSlackAccount) =>
-    account.config.userToken?.trim() || account.botToken?.trim(),
+    normalizeOptionalString(account.config.userToken) ?? normalizeOptionalString(account.botToken),
   resolveNames: async ({ token, entries }) =>
     (await loadSlackResolveUsersModule()).resolveSlackUserAllowlist({ token, entries }),
 });
@@ -324,6 +333,13 @@ export const slackPlugin: ChannelPlugin<ResolvedSlackAccount, SlackProbe> = crea
     },
     messaging: {
       normalizeTarget: normalizeSlackMessagingTarget,
+      resolveDeliveryTarget: ({ conversationId, parentConversationId }) => {
+        const parent = parentConversationId?.trim();
+        const child = conversationId.trim();
+        return parent && parent !== child
+          ? { to: `channel:${parent}`, threadId: child }
+          : { to: normalizeSlackMessagingTarget(`channel:${child}`) };
+      },
       resolveSessionTarget: ({ id }) => normalizeSlackMessagingTarget(`channel:${id}`),
       parseExplicitTarget: ({ raw }) => parseSlackExplicitTarget(raw),
       inferTargetChatType: ({ to }) => parseSlackExplicitTarget(to)?.chatType,
@@ -370,10 +386,8 @@ export const slackPlugin: ChannelPlugin<ResolvedSlackAccount, SlackProbe> = crea
     }),
     resolver: {
       resolveTargets: async ({ cfg, accountId, inputs, kind }) => {
-        const toResolvedTarget = <
-          T extends { input: string; resolved: boolean; id?: string; name?: string },
-        >(
-          entry: T,
+        const toResolvedTarget = (
+          entry: { input: string; resolved: boolean; id?: string; name?: string },
           note?: string,
         ) => ({
           input: entry.input,
@@ -385,7 +399,9 @@ export const slackPlugin: ChannelPlugin<ResolvedSlackAccount, SlackProbe> = crea
         const account = resolveSlackAccount({ cfg, accountId });
         if (kind === "group") {
           return resolveTargetsWithOptionalToken({
-            token: account.config.userToken?.trim() || account.botToken?.trim(),
+            token:
+              normalizeOptionalString(account.config.userToken) ??
+              normalizeOptionalString(account.botToken),
             inputs,
             missingTokenNote: "missing Slack token",
             resolveWithToken: async ({ token, inputs }) =>
@@ -398,7 +414,9 @@ export const slackPlugin: ChannelPlugin<ResolvedSlackAccount, SlackProbe> = crea
           });
         }
         return resolveTargetsWithOptionalToken({
-          token: account.config.userToken?.trim() || account.botToken?.trim(),
+          token:
+            normalizeOptionalString(account.config.userToken) ??
+            normalizeOptionalString(account.botToken),
           inputs,
           missingTokenNote: "missing Slack token",
           resolveWithToken: async ({ token, inputs }) =>
@@ -494,6 +512,7 @@ export const slackPlugin: ChannelPlugin<ResolvedSlackAccount, SlackProbe> = crea
           accountId: account.accountId,
           config: ctx.cfg,
           runtime: ctx.runtime,
+          channelRuntime: ctx.channelRuntime,
           abortSignal: ctx.abortSignal,
           mediaMaxMb: account.config.mediaMaxMb,
           slashCommand: account.config.slashCommand,
@@ -560,6 +579,7 @@ export const slackPlugin: ChannelPlugin<ResolvedSlackAccount, SlackProbe> = crea
       deliveryMode: "direct",
       chunker: null,
       textChunkLimit: SLACK_TEXT_LIMIT,
+      shouldTreatDeliveredTextAsVisible: shouldTreatSlackDeliveredTextAsVisible,
       shouldSuppressLocalPayloadPrompt: ({ cfg, accountId, payload }) =>
         shouldSuppressLocalSlackExecApprovalPrompt({
           cfg,

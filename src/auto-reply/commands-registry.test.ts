@@ -1,43 +1,67 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setActivePluginRegistry } from "../plugins/runtime.js";
 import { createChannelTestPluginBase, createTestRegistry } from "../test-utils/channel-plugins.js";
+import {
+  buildCommandText,
+  buildCommandTextFromArgs,
+  findCommandByNativeName,
+  getCommandDetection,
+  listChatCommands,
+  listChatCommandsForConfig,
+  listNativeCommandSpecs,
+  listNativeCommandSpecsForConfig,
+  normalizeCommandBody,
+  parseCommandArgs,
+  resolveCommandArgChoices,
+  resolveCommandArgMenu,
+  serializeCommandArgs,
+  shouldHandleTextCommands,
+} from "./commands-registry.js";
 import type { ChatCommandDefinition } from "./commands-registry.types.js";
 
-let setActivePluginRegistry: typeof import("../plugins/runtime.js").setActivePluginRegistry;
-let buildCommandText: typeof import("./commands-registry.js").buildCommandText;
-let buildCommandTextFromArgs: typeof import("./commands-registry.js").buildCommandTextFromArgs;
-let findCommandByNativeName: typeof import("./commands-registry.js").findCommandByNativeName;
-let getCommandDetection: typeof import("./commands-registry.js").getCommandDetection;
-let listChatCommands: typeof import("./commands-registry.js").listChatCommands;
-let listChatCommandsForConfig: typeof import("./commands-registry.js").listChatCommandsForConfig;
-let listNativeCommandSpecs: typeof import("./commands-registry.js").listNativeCommandSpecs;
-let listNativeCommandSpecsForConfig: typeof import("./commands-registry.js").listNativeCommandSpecsForConfig;
-let normalizeCommandBody: typeof import("./commands-registry.js").normalizeCommandBody;
-let parseCommandArgs: typeof import("./commands-registry.js").parseCommandArgs;
-let resolveCommandArgChoices: typeof import("./commands-registry.js").resolveCommandArgChoices;
-let resolveCommandArgMenu: typeof import("./commands-registry.js").resolveCommandArgMenu;
-let serializeCommandArgs: typeof import("./commands-registry.js").serializeCommandArgs;
-let shouldHandleTextCommands: typeof import("./commands-registry.js").shouldHandleTextCommands;
+type NativeCommandNameResolver = (params: { commandKey: string; defaultName: string }) => string;
 
-beforeEach(async () => {
-  vi.resetModules();
+function installNativeCommandOverridePlugin(params: {
+  id: "discord" | "slack";
+  resolveNativeCommandName: NativeCommandNameResolver;
+}) {
+  setActivePluginRegistry(
+    createTestRegistry([
+      {
+        pluginId: params.id,
+        plugin: {
+          ...createChannelTestPluginBase({
+            id: params.id,
+            capabilities: { nativeCommands: true, chatTypes: ["direct"] },
+          }),
+          commands: {
+            resolveNativeCommandName: params.resolveNativeCommandName,
+          },
+        },
+        source: "test",
+      },
+    ]),
+  );
+}
+
+function installDiscordNativeCommandOverrides() {
+  installNativeCommandOverridePlugin({
+    id: "discord",
+    resolveNativeCommandName: ({ commandKey, defaultName }) =>
+      commandKey === "tts" ? "voice" : defaultName,
+  });
+}
+
+function installSlackNativeCommandOverrides() {
+  installNativeCommandOverridePlugin({
+    id: "slack",
+    resolveNativeCommandName: ({ commandKey, defaultName }) =>
+      commandKey === "status" ? "agentstatus" : defaultName,
+  });
+}
+
+beforeEach(() => {
   vi.doUnmock("../channels/plugins/index.js");
-  ({ setActivePluginRegistry } = await import("../plugins/runtime.js"));
-  ({
-    buildCommandText,
-    buildCommandTextFromArgs,
-    findCommandByNativeName,
-    getCommandDetection,
-    listChatCommands,
-    listChatCommandsForConfig,
-    listNativeCommandSpecs,
-    listNativeCommandSpecsForConfig,
-    normalizeCommandBody,
-    parseCommandArgs,
-    resolveCommandArgChoices,
-    resolveCommandArgMenu,
-    serializeCommandArgs,
-    shouldHandleTextCommands,
-  } = await import("./commands-registry.js"));
   setActivePluginRegistry(createTestRegistry([]));
 });
 
@@ -117,6 +141,9 @@ describe("commands registry", () => {
       { skillCommands },
     );
     expect(commands.find((spec) => spec.nativeName === "demo_skill")).toBeTruthy();
+    expect(commands.find((spec) => spec.nativeName === "demo_skill")).toMatchObject({
+      category: "tools",
+    });
 
     const native = listNativeCommandSpecsForConfig(
       { commands: { config: false, plugins: false, debug: false, native: true } },
@@ -126,6 +153,7 @@ describe("commands registry", () => {
   });
 
   it("applies discord native command overrides", () => {
+    installDiscordNativeCommandOverrides();
     const native = listNativeCommandSpecsForConfig(
       { commands: { native: true } },
       { provider: "discord" },
@@ -136,6 +164,7 @@ describe("commands registry", () => {
   });
 
   it("applies slack native command overrides", () => {
+    installSlackNativeCommandOverrides();
     const native = listNativeCommandSpecsForConfig(
       { commands: { native: true } },
       { provider: "slack" },
@@ -143,9 +172,28 @@ describe("commands registry", () => {
     expect(native.find((spec) => spec.name === "agentstatus")).toBeTruthy();
     expect(findCommandByNativeName("agentstatus", "slack")?.key).toBe("status");
     expect(findCommandByNativeName("status", "slack")).toBeUndefined();
+    expect(
+      findCommandByNativeName("agentstatus", "slack", {
+        includeBundledChannelFallback: false,
+      })?.key,
+    ).toBe("status");
+    expect(
+      findCommandByNativeName("status", "slack", {
+        includeBundledChannelFallback: false,
+      }),
+    ).toBeUndefined();
+  });
+
+  it("can resolve default native command names without loading bundled channel fallbacks", () => {
+    expect(
+      findCommandByNativeName("status", "discord", {
+        includeBundledChannelFallback: false,
+      })?.key,
+    ).toBe("status");
   });
 
   it("keeps discord native command specs within slash-command limits", () => {
+    installDiscordNativeCommandOverrides();
     const cfg = { commands: { native: true } };
     const native = listNativeCommandSpecsForConfig(cfg, { provider: "discord" });
     for (const spec of native) {

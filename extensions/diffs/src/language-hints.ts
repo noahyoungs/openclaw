@@ -1,10 +1,17 @@
 import { resolveLanguage } from "@pierre/diffs";
 import type { FileContents, FileDiffMetadata, SupportedLanguages } from "@pierre/diffs";
-import { normalizeOptionalString } from "openclaw/plugin-sdk/text-runtime";
 import type { DiffViewerPayload } from "./types.js";
 
 const PASSTHROUGH_LANGUAGE_HINTS = new Set<SupportedLanguages>(["ansi", "text"]);
 type DiffPayloadFile = FileContents | FileDiffMetadata;
+
+function normalizeOptionalString(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
 
 export async function normalizeSupportedLanguageHint(
   value?: string,
@@ -17,7 +24,7 @@ export async function normalizeSupportedLanguageHint(
     return normalized as SupportedLanguages;
   }
   try {
-    await resolveLanguage(normalized);
+    await resolveLanguage(normalized as Exclude<SupportedLanguages, "text" | "ansi">);
     return normalized as SupportedLanguages;
   } catch {
     return undefined;
@@ -95,9 +102,9 @@ export async function normalizeDiffViewerPayloadLanguages(
   payload: DiffViewerPayload,
 ): Promise<DiffViewerPayload> {
   const [fileDiff, oldFile, newFile, payloadLangs] = await Promise.all([
-    normalizeDiffPayloadFileLanguage(payload.fileDiff),
-    normalizeDiffPayloadFileLanguage(payload.oldFile),
-    normalizeDiffPayloadFileLanguage(payload.newFile),
+    normalizeDiffPayloadFileLanguage(payload.fileDiff) as Promise<FileDiffMetadata | undefined>,
+    normalizeDiffPayloadFileLanguage(payload.oldFile) as Promise<FileContents | undefined>,
+    normalizeDiffPayloadFileLanguage(payload.newFile) as Promise<FileContents | undefined>,
     normalizeSupportedLanguageHints(payload.langs, { fallbackToText: false }),
   ]);
   const langs = new Set<SupportedLanguages>(payloadLangs);

@@ -1,5 +1,6 @@
 import type { HeartbeatEventPayload } from "../infra/heartbeat-events.js";
 import type { Tone } from "../memory-host-sdk/status.js";
+import { normalizeLowercaseStringOrEmpty } from "../shared/string-coerce.js";
 import type { TableColumn } from "../terminal/table.js";
 import type { HealthSummary } from "./health.js";
 import type { AgentLocalStatus } from "./status.agent-local.js";
@@ -17,6 +18,21 @@ type SummaryLike = Pick<StatusSummary, "tasks" | "taskAudit" | "heartbeat" | "se
 type MemoryLike = MemoryStatusSnapshot | null;
 type MemoryPluginLike = MemoryPluginStatus;
 type SessionsRecentLike = SessionStatus;
+
+export type StatusMemoryStateResolvers = {
+  resolveMemoryVectorState: (value: NonNullable<MemoryStatusSnapshot["vector"]>) => {
+    state: string;
+    tone: Tone;
+  };
+  resolveMemoryFtsState: (value: NonNullable<MemoryStatusSnapshot["fts"]>) => {
+    state: string;
+    tone: Tone;
+  };
+  resolveMemoryCacheSummary: (value: NonNullable<MemoryStatusSnapshot["cache"]>) => {
+    text: string;
+    tone: Tone;
+  };
+};
 
 type PluginCompatibilityNoticeLike = {
   severity?: "warn" | "info" | null;
@@ -114,25 +130,15 @@ export function buildStatusLastHeartbeatValue(params: {
     .join(" · ");
 }
 
-export function buildStatusMemoryValue(params: {
-  memory: MemoryLike;
-  memoryPlugin: MemoryPluginLike;
-  ok: (value: string) => string;
-  warn: (value: string) => string;
-  muted: (value: string) => string;
-  resolveMemoryVectorState: (value: NonNullable<MemoryStatusSnapshot["vector"]>) => {
-    state: string;
-    tone: Tone;
-  };
-  resolveMemoryFtsState: (value: NonNullable<MemoryStatusSnapshot["fts"]>) => {
-    state: string;
-    tone: Tone;
-  };
-  resolveMemoryCacheSummary: (value: NonNullable<MemoryStatusSnapshot["cache"]>) => {
-    text: string;
-    tone: Tone;
-  };
-}) {
+export function buildStatusMemoryValue(
+  params: {
+    memory: MemoryLike;
+    memoryPlugin: MemoryPluginLike;
+    ok: (value: string) => string;
+    warn: (value: string) => string;
+    muted: (value: string) => string;
+  } & StatusMemoryStateResolvers,
+) {
   if (!params.memoryPlugin.enabled) {
     const suffix = params.memoryPlugin.reason ? ` (${params.memoryPlugin.reason})` : "";
     return params.muted(`disabled${suffix}`);
@@ -253,7 +259,7 @@ export function buildStatusHealthRows(params: {
     }
     const item = line.slice(0, colon).trim();
     const detail = line.slice(colon + 1).trim();
-    const normalized = detail.toLowerCase();
+    const normalized = normalizeLowercaseStringOrEmpty(detail);
     const status = normalized.startsWith("ok")
       ? params.ok("OK")
       : normalized.startsWith("failed")

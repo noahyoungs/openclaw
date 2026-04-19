@@ -10,6 +10,7 @@ import {
 } from "./bus-queries.js";
 import { createQaBusWaiterStore } from "./bus-waiters.js";
 import type {
+  QaBusAttachment,
   QaBusConversation,
   QaBusCreateThreadInput,
   QaBusDeleteMessageInput,
@@ -22,6 +23,7 @@ import type {
   QaBusReadMessageInput,
   QaBusReactToMessageInput,
   QaBusSearchMessagesInput,
+  QaBusStateSnapshot,
   QaBusThread,
   QaBusWaitForInput,
 } from "./runtime-api.js";
@@ -29,9 +31,39 @@ import type {
 const DEFAULT_BOT_ID = "openclaw";
 const DEFAULT_BOT_NAME = "OpenClaw QA";
 
-// Distributive omit so the QaBusEvent discriminated union is preserved per-member.
-type DistributiveOmit<T, K extends keyof never> = T extends unknown ? Omit<T, K> : never;
-type QaBusEventSeed = DistributiveOmit<QaBusEvent, "cursor">;
+type QaBusEventSeed =
+  | {
+      kind: "inbound-message";
+      accountId: string;
+      message: QaBusMessage;
+    }
+  | {
+      kind: "outbound-message";
+      accountId: string;
+      message: QaBusMessage;
+    }
+  | {
+      kind: "thread-created";
+      accountId: string;
+      thread: QaBusThread;
+    }
+  | {
+      kind: "message-edited";
+      accountId: string;
+      message: QaBusMessage;
+    }
+  | {
+      kind: "message-deleted";
+      accountId: string;
+      message: QaBusMessage;
+    }
+  | {
+      kind: "reaction-added";
+      accountId: string;
+      message: QaBusMessage;
+      emoji: string;
+      senderId: string;
+    };
 
 export function createQaBusState() {
   const conversations = new Map<string, QaBusConversation>();
@@ -82,6 +114,7 @@ export function createQaBusState() {
     threadId?: string;
     threadTitle?: string;
     replyToId?: string;
+    attachments?: QaBusAttachment[];
   }): QaBusMessage => {
     const conversation = ensureConversation(params.conversation);
     const message: QaBusMessage = {
@@ -96,6 +129,7 @@ export function createQaBusState() {
       threadId: params.threadId,
       threadTitle: params.threadTitle,
       replyToId: params.replyToId,
+      attachments: params.attachments?.map((attachment) => ({ ...attachment })) ?? [],
       reactions: [],
     };
     messages.set(message.id, message);
@@ -134,6 +168,7 @@ export function createQaBusState() {
         threadId: input.threadId,
         threadTitle: input.threadTitle,
         replyToId: input.replyToId,
+        attachments: input.attachments,
       });
       pushEvent({
         kind: "inbound-message",
@@ -155,6 +190,7 @@ export function createQaBusState() {
         timestamp: input.timestamp,
         threadId: input.threadId ?? threadId,
         replyToId: input.replyToId,
+        attachments: input.attachments,
       });
       pushEvent({
         kind: "outbound-message",
@@ -246,6 +282,13 @@ export function createQaBusState() {
     },
     async waitFor(input: QaBusWaitForInput) {
       return await waiters.waitFor(input);
+    },
+    async waitForCursorAdvance(
+      afterCursor: number,
+      timeoutMs: number,
+      shouldResolve?: (snapshot: QaBusStateSnapshot) => boolean,
+    ) {
+      return await waiters.waitForCursorAdvance(afterCursor, timeoutMs, shouldResolve);
     },
   };
 }

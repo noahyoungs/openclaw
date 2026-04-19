@@ -3,6 +3,7 @@ import {
   type OpenClawConfig,
   type ProviderAuthResult,
 } from "openclaw/plugin-sdk/provider-auth";
+import { normalizeLowercaseStringOrEmpty } from "openclaw/plugin-sdk/text-runtime";
 import {
   readClaudeCliCredentialsForSetup,
   readClaudeCliCredentialsForSetupNonInteractive,
@@ -19,11 +20,11 @@ type ClaudeCliCredential = NonNullable<ReturnType<typeof readClaudeCliCredential
 
 function toClaudeCliModelRef(raw: string): string | null {
   const trimmed = raw.trim();
-  if (!trimmed.toLowerCase().startsWith("anthropic/")) {
+  if (!normalizeLowercaseStringOrEmpty(trimmed).startsWith("anthropic/")) {
     return null;
   }
   const modelId = trimmed.slice("anthropic/".length).trim();
-  if (!modelId.toLowerCase().startsWith("claude-")) {
+  if (!normalizeLowercaseStringOrEmpty(modelId).startsWith("claude-")) {
     return null;
   }
   return `claude-cli/${modelId}`;
@@ -165,7 +166,7 @@ export function buildAnthropicCliMigrationResult(
   const rewrittenModels = rewriteModelEntryMap(defaults?.models);
   const existingModels = (rewrittenModels.value ??
     defaults?.models ??
-    {});
+    {}) as NonNullable<AgentDefaultsModels>;
   const nextModels = seedClaudeCliAllowlist(existingModels);
   const defaultModel = rewrittenModel.primary ?? CLAUDE_CLI_DEFAULT_MODEL_REF;
 
